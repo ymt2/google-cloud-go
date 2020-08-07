@@ -22,6 +22,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/morikuni/failure"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -62,6 +63,22 @@ func TestToSpannerError(t *testing.T) {
 			&wrappedTestError{
 				wrapped: errors.New("wha?"),
 				msg:     "error with wrapped non-gRPC and non-Spanner error"}},
+		{
+			failure.Wrap(spannerErrorf(codes.InvalidArgument, "bad w/ failure")),
+			codes.InvalidArgument, `spanner: code = "InvalidArgument", desc = "bad w/ failure"`,
+			status.Errorf(codes.InvalidArgument, "bad w/ failure"),
+		},
+		{
+			failure.Wrap(spannerErrorf(codes.Aborted, "Transaction aborted w/ failure"), failure.Messagef("failure")),
+			codes.Aborted, `spanner: code = "Aborted", desc = "Transaction aborted w/ failure"`,
+			status.Errorf(codes.Aborted, "Transaction aborted w/ failure"),
+		},
+		{
+			failure.Translate(spannerErrorf(codes.Aborted, "Transaction aborted w/ translated"), failure.StringCode("CODE"), failure.Messagef("failure")),
+			codes.Aborted,
+			`spanner: code = "Aborted", desc = "Transaction aborted w/ translated"`,
+			status.Errorf(codes.Aborted, "Transaction aborted w/ translated"),
+		},
 	} {
 		err := toSpannerError(test.err)
 		errDuringCommit := toSpannerErrorWithCommitInfo(test.err, true)
